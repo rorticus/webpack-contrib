@@ -57,6 +57,7 @@ export interface BuildTimeRenderArguments {
 	discoverPaths?: boolean;
 	writeHtml?: boolean;
 	onDemand?: boolean;
+	legacy?: boolean;
 }
 
 function genHash(content: string): string {
@@ -132,6 +133,7 @@ export default class BuildTimeRender {
 	private _writtenHtmlFiles: string[] = [];
 	private _initialBtr = true;
 	private _onDemand = false;
+	private _isLegacy = false;
 
 	constructor(args: BuildTimeRenderArguments) {
 		const {
@@ -147,10 +149,13 @@ export default class BuildTimeRender {
 			discoverPaths = true,
 			sync = false,
 			writeHtml = true,
-			onDemand = false
+			onDemand = false,
+			legacy = false
 		} = args;
 		const path = paths[0];
 		const initialPath = typeof path === 'object' ? path.path : path;
+
+		this._isLegacy = legacy;
 
 		this._basePath = basePath;
 		this._baseUrl = baseUrl;
@@ -228,7 +233,7 @@ export default class BuildTimeRender {
 			} else {
 				html = html.replace(this._createScripts(), `${script}${css}${this._createScripts(false)}`);
 
-				const mainScript = this._manifest['main.js'];
+				const mainScript = this._manifest[this._isLegacy ? 'main.legacy.js' : 'main.js'];
 
 				additionalScripts
 					.sort((script1, script2) => {
@@ -272,7 +277,7 @@ export default class BuildTimeRender {
 				html = html.replace('</body>', `<script type="text/javascript" src="${blockScript}"></script></body>`);
 			});
 		}
-		const htmlPath = join(this._output!, ...path.split('/'), 'index.html');
+		const htmlPath = join(this._output!, ...path.split('/'), this._isLegacy ? 'index.legacy.html' : 'index.html');
 		if (path) {
 			this._writtenHtmlFiles.push(htmlPath);
 		}
@@ -281,7 +286,8 @@ export default class BuildTimeRender {
 
 	private _createScripts(regex = true) {
 		const scripts = this._entries.reduce(
-			(script, entry) => `${script}<script${regex ? '.*' : ''} src="${this._manifest[entry]}"></script>`,
+			(script, entry) =>
+				`${script}<script${regex ? '.*' : ''} src="${this._manifest[entry]}" type="module"></script>`,
 			''
 		);
 		return regex ? new RegExp(scripts) : scripts;
@@ -438,7 +444,7 @@ export default class BuildTimeRender {
 		Object.keys(this._buildBridgeResult).forEach((modulePath) => {
 			Object.keys(this._buildBridgeResult[modulePath]).forEach((args) => {
 				this._hasBuildBridgeCache = true;
-				const chunkName = `runtime/block-${genHash(modulePath + args)}`;
+				const chunkName = `runtime/block-${genHash(modulePath + args)}${this._isLegacy ? '.legacy' : ''}`;
 				const blockCacheEntry = `blockCacheEntry('${modulePath}', '${args}', '${chunkName}')`;
 				const blockResult = this._buildBridgeResult[modulePath][args];
 				const blockResultChunk = `
@@ -572,7 +578,9 @@ ${blockCacheEntry}`
 		if (this._onDemand && !this._initialBtr && existsSync(join(this._output, 'btr-manifest.json'))) {
 			pageManifest = JSON.parse(readFileSync(join(this._output, 'btr-manifest.json'), 'utf8'));
 		}
-		this._manifest = JSON.parse(compilation.assets['manifest.json'].source());
+		this._manifest = JSON.parse(
+			compilation.assets[this._isLegacy ? 'manifest.legacy.json' : 'manifest.json'].source()
+		);
 		this._manifestContent = Object.keys(this._manifest).reduce((obj: any, chunkname: string) => {
 			obj[chunkname] = compilation.assets[this._manifest[chunkname]].source();
 			return obj;
