@@ -281,7 +281,8 @@ export default class BuildTimeRender {
 
 	private _createScripts(regex = true) {
 		const scripts = this._entries.reduce(
-			(script, entry) => `${script}<script${regex ? '.*' : ''} src="${this._manifest[entry]}"></script>`,
+			(script, entry) =>
+				`${script}<script${regex ? '.*' : ''} src="${this._manifest[entry]}" type="module"></script>`,
 			''
 		);
 		return regex ? new RegExp(scripts) : scripts;
@@ -417,7 +418,7 @@ export default class BuildTimeRender {
 						.replace(/\..*/, '');
 					const newMainHash = genHash(this._manifestContent['main.js']);
 
-					const mainChunkName = `main.${newMainHash}.bundle.js`;
+					const mainChunkName = this._manifest['main.js'].replace(mainHash, newMainHash);
 					this._manifest['main.js'] = mainChunkName;
 					this._updateHTML(currentMainHash, newMainHash);
 					this._filesToRemove.add(currentMainChunkName);
@@ -489,7 +490,10 @@ ${blockCacheEntry}`
 							.replace('bootstrap.js'.replace('js', ''), '')
 							.replace(/\..*/, '');
 						const newBootstrapHash = genHash(this._manifestContent['bootstrap.js']);
-						const bootstrapChunkName = `bootstrap.${newBootstrapHash}.bundle.js`;
+						const bootstrapChunkName = this._manifest['bootstrap.js'].replace(
+							currentBootstrapHash,
+							newBootstrapHash
+						);
 						const blockChunkName = `runtime/blocks.${newBlockHash}.bundle.js`;
 						this._manifest['bootstrap.js'] = bootstrapChunkName;
 						this._manifest[blockChunk] = blockChunkName;
@@ -702,11 +706,15 @@ ${blockCacheEntry}`
 		}
 
 		const plugin = new webpack.NormalModuleReplacementPlugin(/\.block/, (resource: any) => {
-			const modulePath = join(resource.context, resource.request)
-				.replace(this._basePath, '')
-				.replace(/\\/g, '/')
-				.replace(/^\//, '');
-			resource.request = `@dojo/webpack-contrib/build-time-render/build-bridge-loader?modulePath='${modulePath}'!@dojo/webpack-contrib/build-time-render/bridge`;
+			const compiler = (resource.contextInfo || {}).compiler;
+
+			if (!compiler) {
+				const modulePath = join(resource.context, resource.request)
+					.replace(this._basePath, '')
+					.replace(/\\/g, '/')
+					.replace(/^\//, '');
+				resource.request = `@dojo/webpack-contrib/build-time-render/build-bridge-loader?modulePath='${modulePath}'!@dojo/webpack-contrib/build-time-render/bridge`;
+			}
 		});
 		plugin.apply(compiler);
 
