@@ -706,9 +706,7 @@ ${blockCacheEntry}`
 		}
 
 		const plugin = new webpack.NormalModuleReplacementPlugin(/\.block/, (resource: any) => {
-			const compiler = (resource.contextInfo || {}).compiler;
-
-			if (!compiler) {
+			if (resource.request.indexOf('@') === -1) {
 				const modulePath = join(resource.context, resource.request)
 					.replace(this._basePath, '')
 					.replace(/\\/g, '/')
