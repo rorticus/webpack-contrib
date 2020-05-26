@@ -134,6 +134,8 @@ export default class BuildTimeRender {
 	private _onDemand = false;
 	private _legacyBootstrapHash = '';
 	private _legacyBootstrapContent = '';
+	private _legacyBlocksFilename = '';
+	private _legacyBlocksContent = '';
 
 	constructor(args: BuildTimeRenderArguments) {
 		const {
@@ -470,6 +472,15 @@ __webpack_require__.r(__webpack_exports__);
 ${blockCacheEntry}`
 						);
 					}
+
+					if (this._legacyBlocksContent.indexOf(blockCacheEntry) === -1) {
+						this._legacyBlocksContent = this._legacyBlocksContent.replace(
+							'APPEND_BLOCK_CACHE_ENTRY **/',
+							`APPEND_BLOCK_CACHE_ENTRY **/
+${blockCacheEntry}`
+						);
+					}
+
 					this._manifest[`${chunkName}.js`] = `${chunkName}.js`;
 					if (mainHash) {
 						const newBlockHash = genHash(this._manifestContent[blockChunk]);
@@ -548,9 +559,12 @@ ${blockCacheEntry}`
 				outputFileSync(join(this._output!, this._manifest[name]), this._manifestContent[name], 'utf-8');
 			});
 
+			// output legacy bootstrap
 			const legacyBootstrapFilename = `bootstrap.${this._legacyBootstrapHash}.bundle.js`;
-			console.error('Legacy bootstrap filename: ', legacyBootstrapFilename);
 			outputFileSync(join(this._output!, legacyBootstrapFilename), this._legacyBootstrapContent, 'utf-8');
+
+			// output legacy blocks
+			outputFileSync(join(this._output!, this._legacyBlocksFilename), this._legacyBlocksContent, 'utf-8');
 
 			this._filesToWrite = new Set();
 		}
@@ -753,8 +767,9 @@ ${blockCacheEntry}`
 				if (/^bootstrap.*\.js$/.test(name) && name.indexOf('modern') === -1) {
 					this._legacyBootstrapContent = compilation.assets[name].source();
 					this._legacyBootstrapHash = name.replace('bootstrap.', '').replace(/([^.]*)(\.bundle)?\.js$/, '$1');
-
-					console.error(`Found legacy bootstrap ${name} with hash ${this._legacyBootstrapHash}`);
+				} else if (/^runtime\/blocks.*\.js$/.test(name) && name.indexOf('modern') === -1) {
+					this._legacyBlocksContent = compilation.assets[name].source();
+					this._legacyBlocksFilename = name;
 				}
 			});
 
